@@ -152,8 +152,14 @@ with st.sidebar:
             if m < 1: m = 12; y -= 1
             st.session_state.current_month = m
             st.session_state.current_year  = y
+            st.rerun()
     with col_mid:
-        st.markdown(f"<div style='text-align:center;font-weight:700;padding-top:0.4rem'>{MONTHS[st.session_state.current_month-1][:3]} {st.session_state.current_year}</div>", unsafe_allow_html=True)
+        # Read state after any button press so label is always in sync
+        st.markdown(
+            f"<div style='text-align:center;font-weight:700;padding-top:0.4rem'>"
+            f"{MONTHS[st.session_state.current_month-1][:3]} {st.session_state.current_year}</div>",
+            unsafe_allow_html=True,
+        )
     with col_next:
         if st.button("▶", use_container_width=True):
             m = st.session_state.current_month + 1
@@ -161,6 +167,7 @@ with st.sidebar:
             if m > 12: m = 1; y += 1
             st.session_state.current_month = m
             st.session_state.current_year  = y
+            st.rerun()
     st.divider()
 
     # Strategy pillars
