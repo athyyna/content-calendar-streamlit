@@ -192,11 +192,14 @@ with st.sidebar:
         st.markdown(f"<div style='font-size:0.78rem;margin-bottom:4px'><span style='color:{priority_color}'>●</span> <b>{c['platform']}</b>: {c['frequency']}</div>", unsafe_allow_html=True)
 
 # ── Main header ───────────────────────────────────────────────────────────────
+# Re-read state here so header always reflects the current month after rerun
 accent = config["accent"]
+_month_label = MONTHS[st.session_state.current_month - 1]
+_year_label  = st.session_state.current_year
 st.markdown(f"""
 <div class="main-header">
   <h1>📅 Content Calendar Planner</h1>
-  <p>{config['label']} · {MONTHS[st.session_state.current_month-1]} {st.session_state.current_year} · Cebu City, Philippines</p>
+  <p>{config['label']} · {_month_label} {_year_label} · Cebu City, Philippines</p>
 </div>
 """, unsafe_allow_html=True)
 
@@ -215,6 +218,13 @@ with tabs[0]:
 
     month_holidays = get_holidays_for_month(year, month)
     holiday_dates  = {h["date"] for h in month_holidays}
+
+    # Month heading — always matches sidebar navigation
+    st.markdown(
+        f"<h2 style='margin:0 0 0.75rem;font-size:1.4rem;font-weight:700;color:#111827'>"
+        f"📅 {MONTHS[month-1]} {year}</h2>",
+        unsafe_allow_html=True,
+    )
 
     # Month summary bar
     month_posts = [p for p in posts if p["date"].startswith(f"{year}-{str(month).zfill(2)}")]
