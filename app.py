@@ -215,7 +215,7 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # ── Tab navigation ────────────────────────────────────────────────────────────
-tabs = st.tabs(["📅 Calendar", "📊 Performance Tracker", "✨ AI Ideas", "📋 Learnings Report", "🗓️ Holiday Manager"])
+tabs = st.tabs(["📅 Calendar", "📊 Performance Tracker", "✨ AI Ideas", "📋 Learnings Report", "🗓️ Event Manager"])
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # TAB 1 — CALENDAR
@@ -919,21 +919,21 @@ with tabs[3]:
         st.dataframe(df_export, use_container_width=True, hide_index=True)
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# TAB 5 — HOLIDAY MANAGER
+# TAB 5 — EVENT MANAGER
 # ═══════════════════════════════════════════════════════════════════════════════
 with tabs[4]:
     from data.holidays import HOLIDAY_TYPE_CONFIG
 
-    st.markdown("### 🗃️ Holiday Manager")
-    st.caption("Add, edit, or remove holidays. Changes reflect immediately on the calendar. Reloading the page resets to the default 2026 Cebu City list.")
+    st.markdown("### 🗓️ Event Manager")
+    st.caption("Add, edit, or remove events and holidays. Changes reflect immediately on the calendar. Reloading the page resets to the default 2026 Cebu City list.")
 
     HOLIDAY_TYPES = list(HOLIDAY_TYPE_CONFIG.keys())
     HOLIDAY_SCOPES = ["national", "cebu-city", "cebu-province", "other"]
 
     # ── Add new holiday form
-    with st.expander("➕ Add New Holiday", expanded=False):
+    with st.expander("➕ Add New Event or Holiday", expanded=False):
         with st.form("add_holiday_form"):
-            h_name  = st.text_input("Holiday Name *", placeholder="e.g. Fiesta Señor")
+            h_name  = st.text_input("Event / Holiday Name *", placeholder="e.g. Fiesta Señor, Store Anniversary, Campaign Launch")
             h_date  = st.date_input("Date *", value=date(st.session_state.current_year, st.session_state.current_month, 1))
             hc1, hc2 = st.columns(2)
             with hc1:
@@ -1042,7 +1042,7 @@ with tabs[4]:
 
     st.divider()
     # Reset to defaults
-    if st.button("🔄 Reset to Default 2026 Cebu City Holidays", use_container_width=True):
+    if st.button("🔄 Reset to Default 2026 Cebu City Events & Holidays", use_container_width=True):
         from data.holidays import HOLIDAYS_2026
         st.session_state.holidays = [dict(h) for h in HOLIDAYS_2026]
         st.success("✅ Holidays reset to default 2026 Cebu City list")
