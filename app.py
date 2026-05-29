@@ -399,7 +399,7 @@ with tabs[0]:
                         st.caption(p["caption"][:120] + ("…" if len(p.get("caption","")) > 120 else ""))
                 with col_actions:
                     if p.get("outcome") == "Worked ✅":
-                        if st.button("📋 Duplicate", key=f"dup_{p['id']}"):
+                        if st.button("📋 Dup", key=f"dup_{p['id']}", help="Duplicate to next month"):
                             import uuid
                             next_m = month + 1
                             next_y = year
@@ -414,12 +414,65 @@ with tabs[0]:
                             st.session_state.posts[st.session_state.business_type].append(dup)
                             st.success(f"Duplicated to {new_date}")
                             st.rerun()
-                    if st.button("🗑️ Delete", key=f"del_{p['id']}"):
+                    if st.button("✏️ Edit", key=f"edit_btn_{p['id']}", help="Edit this post"):
+                        st.session_state[f"editing_{p['id']}"] = True
+                    if st.button("🗑️ Del", key=f"del_{p['id']}", help="Delete this post"):
                         st.session_state.posts[st.session_state.business_type] = [
                             x for x in st.session_state.posts[st.session_state.business_type] if x["id"] != p["id"]
                         ]
                         st.rerun()
-                st.divider()
+
+            # Inline edit form — shown below the post card when Edit is clicked
+            if st.session_state.get(f"editing_{p['id']}"):
+                with st.expander(f"✏️ Editing: {p['title']}", expanded=True):
+                    with st.form(f"edit_form_{p['id']}"):
+                        e_title   = st.text_input("Post Title *", value=p.get("title", ""))
+                        e_caption = st.text_area("Caption", value=p.get("caption", "") or "", height=80)
+                        e_cta     = st.text_input("Call to Action", value=p.get("cta", "") or "")
+                        e_date    = st.date_input(
+                            "Date",
+                            value=datetime.strptime(p["date"], "%Y-%m-%d").date(),
+                        )
+                        ec1, ec2, ec3 = st.columns(3)
+                        with ec1:
+                            e_platform = st.selectbox("Platform", PLATFORMS, index=PLATFORMS.index(p["platform"]) if p["platform"] in PLATFORMS else 0)
+                        with ec2:
+                            e_fmt = st.selectbox("Format", FORMATS, index=FORMATS.index(p["format"]) if p["format"] in FORMATS else 0)
+                        with ec3:
+                            pillar_opts  = {pl["name"]: pl["id"] for pl in config["pillars"]}
+                            pillar_names = list(pillar_opts.keys())
+                            cur_pillar_name = next((pl["name"] for pl in config["pillars"] if pl["id"] == p["pillar"]), pillar_names[0])
+                            e_pillar_name = st.selectbox("Pillar", pillar_names, index=pillar_names.index(cur_pillar_name) if cur_pillar_name in pillar_names else 0)
+                        e_status = st.selectbox("Status", STATUSES, index=STATUSES.index(p["status"]) if p["status"] in STATUSES else 0)
+                        e_notes  = st.text_input("Notes (optional)", value=p.get("notes", "") or "")
+                        save_col, cancel_col = st.columns(2)
+                        with save_col:
+                            save_edit = st.form_submit_button("💾 Save Changes", type="primary", use_container_width=True)
+                        with cancel_col:
+                            cancel_edit = st.form_submit_button("✕ Cancel", use_container_width=True)
+
+                        if save_edit and e_title:
+                            for i, x in enumerate(st.session_state.posts[st.session_state.business_type]):
+                                if x["id"] == p["id"]:
+                                    st.session_state.posts[st.session_state.business_type][i].update({
+                                        "title":    e_title,
+                                        "caption":  e_caption or None,
+                                        "cta":      e_cta or None,
+                                        "date":     e_date.strftime("%Y-%m-%d"),
+                                        "platform": e_platform,
+                                        "format":   e_fmt,
+                                        "pillar":   pillar_opts[e_pillar_name],
+                                        "status":   e_status,
+                                        "notes":    e_notes or None,
+                                    })
+                                    break
+                            st.session_state.pop(f"editing_{p['id']}", None)
+                            st.success(f"✅ '{e_title}' updated")
+                            st.rerun()
+                        if cancel_edit:
+                            st.session_state.pop(f"editing_{p['id']}", None)
+                            st.rerun()
+            st.divider()
     else:
         st.info("No posts on this date. Click '➕ Add Post' to create one.")
 
