@@ -110,6 +110,10 @@ if "current_month" not in st.session_state: st.session_state.current_month = 5
 if "active_tab"    not in st.session_state: st.session_state.active_tab    = "📅 Calendar"
 if "ai_preset_theme"   not in st.session_state: st.session_state.ai_preset_theme   = None
 if "ai_preset_context" not in st.session_state: st.session_state.ai_preset_context = ""
+# Editable holidays — seeded from static data, user can add/edit/delete at runtime
+if "holidays" not in st.session_state:
+    from data.holidays import HOLIDAYS_2026
+    st.session_state.holidays = [dict(h) for h in HOLIDAYS_2026]
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 def get_config():
@@ -120,6 +124,13 @@ def get_posts():
 
 def get_pillar_map():
     return {p["id"]: p for p in get_config()["pillars"]}
+
+def get_holidays_for_month_live(year: int, month: int) -> list:
+    prefix = f"{year}-{str(month).zfill(2)}"
+    return [h for h in st.session_state.holidays if h["date"].startswith(prefix)]
+
+def get_holidays_for_date_live(date_str: str) -> list:
+    return [h for h in st.session_state.holidays if h["date"] == date_str]
 
 MONTHS = ["January","February","March","April","May","June",
           "July","August","September","October","November","December"]
@@ -204,7 +215,7 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # ── Tab navigation ────────────────────────────────────────────────────────────
-tabs = st.tabs(["📅 Calendar", "📊 Performance Tracker", "✨ AI Ideas", "📋 Learnings Report"])
+tabs = st.tabs(["📅 Calendar", "📊 Performance Tracker", "✨ AI Ideas", "📋 Learnings Report", "🗓️ Holiday Manager"])
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # TAB 1 — CALENDAR
@@ -216,7 +227,7 @@ with tabs[0]:
     config = get_config()
     pillar_map = get_pillar_map()
 
-    month_holidays = get_holidays_for_month(year, month)
+    month_holidays = get_holidays_for_month_live(year, month)
     holiday_dates  = {h["date"] for h in month_holidays}
 
     # Month heading — always matches sidebar navigation
@@ -318,7 +329,7 @@ with tabs[0]:
 
     selected_str  = selected_date.strftime("%Y-%m-%d")
     selected_posts = [p for p in posts if p["date"] == selected_str]
-    sel_holidays   = get_holidays_for_date(selected_str)
+    sel_holidays   = get_holidays_for_date_live(selected_str)
 
     if sel_holidays:
         for h in sel_holidays:
@@ -671,7 +682,7 @@ with tabs[2]:
         st.session_state.ai_preset_theme   = None
 
     # Holiday context notice
-    month_holidays = get_holidays_for_month(year, month)
+    month_holidays = get_holidays_for_month_live(year, month)
     if month_holidays and selected_theme_id == "holiday":
         hol_names = ", ".join(h["name"] for h in month_holidays)
         st.markdown(f'<div class="warning-box">🗓️ <b>Holidays in {MONTHS[month-1]}:</b> {hol_names}</div>', unsafe_allow_html=True)
@@ -906,6 +917,136 @@ with tabs[3]:
             type="primary",
         )
         st.dataframe(df_export, use_container_width=True, hide_index=True)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# TAB 5 — HOLIDAY MANAGER
+# ═══════════════════════════════════════════════════════════════════════════════
+with tabs[4]:
+    from data.holidays import HOLIDAY_TYPE_CONFIG
+
+    st.markdown("### 🗃️ Holiday Manager")
+    st.caption("Add, edit, or remove holidays. Changes reflect immediately on the calendar. Reloading the page resets to the default 2026 Cebu City list.")
+
+    HOLIDAY_TYPES = list(HOLIDAY_TYPE_CONFIG.keys())
+    HOLIDAY_SCOPES = ["national", "cebu-city", "cebu-province", "other"]
+
+    # ── Add new holiday form
+    with st.expander("➕ Add New Holiday", expanded=False):
+        with st.form("add_holiday_form"):
+            h_name  = st.text_input("Holiday Name *", placeholder="e.g. Fiesta Señor")
+            h_date  = st.date_input("Date *", value=date(st.session_state.current_year, st.session_state.current_month, 1))
+            hc1, hc2 = st.columns(2)
+            with hc1:
+                h_type  = st.selectbox("Type", HOLIDAY_TYPES,
+                    format_func=lambda x: HOLIDAY_TYPE_CONFIG[x]["label"])
+            with hc2:
+                h_scope = st.selectbox("Scope", HOLIDAY_SCOPES)
+            h_note  = st.text_input("Note (optional)", placeholder="e.g. City ordinance No. 123")
+            add_hol = st.form_submit_button("➕ Add Holiday", type="primary", use_container_width=True)
+            if add_hol and h_name:
+                st.session_state.holidays.append({
+                    "date":  h_date.strftime("%Y-%m-%d"),
+                    "name":  h_name,
+                    "type":  h_type,
+                    "scope": h_scope,
+                    "note":  h_note or None,
+                })
+                st.success(f"✅ '{h_name}' added on {h_date.strftime('%B %d, %Y')}")
+                st.rerun()
+
+    st.divider()
+
+    # ── Filter by month
+    st.markdown("**Filter by month**")
+    fc1, fc2 = st.columns([2, 1])
+    with fc1:
+        filter_month = st.selectbox("Month", ["All months"] + MONTHS, index=st.session_state.current_month)
+    with fc2:
+        filter_type  = st.selectbox("Type", ["All types"] + HOLIDAY_TYPES,
+            format_func=lambda x: x if x == "All types" else HOLIDAY_TYPE_CONFIG[x]["label"])
+
+    # Build filtered list
+    filtered_holidays = sorted(st.session_state.holidays, key=lambda h: h["date"])
+    if filter_month != "All months":
+        m_idx = str(MONTHS.index(filter_month) + 1).zfill(2)
+        filtered_holidays = [h for h in filtered_holidays if h["date"][5:7] == m_idx]
+    if filter_type != "All types":
+        filtered_holidays = [h for h in filtered_holidays if h["type"] == filter_type]
+
+    st.markdown(f"**{len(filtered_holidays)} holiday(s) shown**")
+
+    if not filtered_holidays:
+        st.info("No holidays match the current filter.")
+    else:
+        for idx, h in enumerate(filtered_holidays):
+            tc = HOLIDAY_TYPE_CONFIG.get(h["type"], HOLIDAY_TYPE_CONFIG["special-non-working"])
+            # Find the real index in session state for editing/deleting
+            real_idx = next((i for i, x in enumerate(st.session_state.holidays)
+                             if x["date"] == h["date"] and x["name"] == h["name"]), None)
+            uid = f"{h['date']}_{h['name'][:8]}_{idx}"
+
+            col_info, col_edit, col_del = st.columns([6, 1, 1])
+            with col_info:
+                st.markdown(
+                    f'<div style="background:{tc["color"]};border:1px solid {tc["border"]};border-radius:8px;'
+                    f'padding:0.5rem 0.75rem;font-size:0.85rem">'
+                    f'<b>{tc["icon"]} {h["name"]}</b> &nbsp;·&nbsp; {h["date"]} &nbsp;·&nbsp; '
+                    f'<span style="color:{tc["text"]}">{tc["label"]}</span>'
+                    f'{(" &nbsp;·&nbsp; " + h["note"]) if h.get("note") else ""}'
+                    f'</div>',
+                    unsafe_allow_html=True,
+                )
+            with col_edit:
+                if st.button("✏️", key=f"hedit_{uid}", help="Edit this holiday"):
+                    st.session_state[f"h_editing_{uid}"] = True
+            with col_del:
+                if st.button("🗑️", key=f"hdel_{uid}", help="Delete this holiday"):
+                    if real_idx is not None:
+                        st.session_state.holidays.pop(real_idx)
+                    st.rerun()
+
+            # Inline edit form
+            if st.session_state.get(f"h_editing_{uid}") and real_idx is not None:
+                with st.expander(f"✏️ Editing: {h['name']}", expanded=True):
+                    with st.form(f"hedit_form_{uid}"):
+                        eh_name  = st.text_input("Holiday Name *", value=h["name"])
+                        eh_date  = st.date_input("Date *", value=datetime.strptime(h["date"], "%Y-%m-%d").date())
+                        ehc1, ehc2 = st.columns(2)
+                        with ehc1:
+                            eh_type  = st.selectbox("Type", HOLIDAY_TYPES,
+                                index=HOLIDAY_TYPES.index(h["type"]) if h["type"] in HOLIDAY_TYPES else 0,
+                                format_func=lambda x: HOLIDAY_TYPE_CONFIG[x]["label"])
+                        with ehc2:
+                            eh_scope = st.selectbox("Scope", HOLIDAY_SCOPES,
+                                index=HOLIDAY_SCOPES.index(h["scope"]) if h["scope"] in HOLIDAY_SCOPES else 0)
+                        eh_note  = st.text_input("Note (optional)", value=h.get("note") or "")
+                        es1, es2 = st.columns(2)
+                        with es1:
+                            save_h = st.form_submit_button("💾 Save", type="primary", use_container_width=True)
+                        with es2:
+                            cancel_h = st.form_submit_button("✕ Cancel", use_container_width=True)
+                        if save_h and eh_name:
+                            st.session_state.holidays[real_idx] = {
+                                "date":  eh_date.strftime("%Y-%m-%d"),
+                                "name":  eh_name,
+                                "type":  eh_type,
+                                "scope": eh_scope,
+                                "note":  eh_note or None,
+                            }
+                            st.session_state.pop(f"h_editing_{uid}", None)
+                            st.success(f"✅ '{eh_name}' updated")
+                            st.rerun()
+                        if cancel_h:
+                            st.session_state.pop(f"h_editing_{uid}", None)
+                            st.rerun()
+
+    st.divider()
+    # Reset to defaults
+    if st.button("🔄 Reset to Default 2026 Cebu City Holidays", use_container_width=True):
+        from data.holidays import HOLIDAYS_2026
+        st.session_state.holidays = [dict(h) for h in HOLIDAYS_2026]
+        st.success("✅ Holidays reset to default 2026 Cebu City list")
+        st.rerun()
 
 # ── Footer ────────────────────────────────────────────────────────────────────
 st.divider()
